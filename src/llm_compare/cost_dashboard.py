@@ -263,7 +263,6 @@ def generate_cost_summary_html(
     print(f"Report saved to {path}")
     return path
 
-
 def run_comparison_batch(prompts: list[str], providers: list[LLMProvider], judge: LLMProvider) -> None:
     """Run a batch of prompts through run_comparison(), then report cost,
     latency, and quality for just this batch.
@@ -296,7 +295,4 @@ def run_comparison_batch(prompts: list[str], providers: list[LLMProvider], judge
 
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv('../.env')
-
     print(summarize(LOG_PATH))

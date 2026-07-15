@@ -9,6 +9,10 @@ from .eval.judge import score_with_llm
 from .eval.types import EvalCase
 from .cost_dashboard import log_run
 from .retry_backoff import retry_with_backoff
+from .providers.anthropic_provider import AnthropicProvider
+from .providers.openai_provider import OpenAIProvider
+from .providers.ollama_provider import OllamaProvider
+from .providers.groq_provider import GroqProvider
 
 TRUNCATE_AT: int = 60
 RESULTS_DIR: Path = Path('results')
@@ -147,18 +151,13 @@ if __name__ == '__main__':
 
     load_dotenv()
 
-    from .providers.anthropic_provider import AnthropicProvider
-    from .providers.openai_provider import OpenAIProvider
-    from .providers.ollama_provider import OllamaProvider
-    from .providers.groq_provider import GroqProvider
-
     inp: str = "Explain what an API is in one sentence."
     system_message: str = 'You are a helpful assistant.'
     providers_list: list[LLMProvider] = [
         AnthropicProvider(),
         OpenAIProvider(),
         GroqProvider(),
-        OllamaProvider()
+        OllamaProvider(),
     ]
 
     results: ComparisonResult = run_comparison(inp, providers_list, system_message, GroqProvider())
