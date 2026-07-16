@@ -1,15 +1,22 @@
 import argparse
+import base64
 import datetime
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any
+
+import matplotlib.pyplot as plt
 
 from .dataset import Category
 from .types import EvalCase, EvalResult
 from .regression_check import load_baseline, check_regression
+from ..cost_dashboard import STYLE_BLOCK
+from ..providers.base import provider_label, provider_color
 
 
 def load_results(path: str) -> dict[str, list[EvalResult]]:
+    """Load a batch_*.json file back into {provider: [EvalResult]}."""
     raw: dict[str, list[dict[str, Any]]] = json.loads(Path(path).read_text())
 
     data: dict[str, list[EvalResult]] = {}
@@ -38,6 +45,7 @@ def get_categorized_result_numbers(all_results: dict[str, list[EvalResult]]) -> 
     return category_classified
 
 def get_pass_rates_per_provider(all_results: dict[str, list[EvalResult]]) -> dict[str, float]:
+    """Return {provider: pass_rate} (0.0-1.0), rounded to 2 decimals."""
     rates_per_provider = {}
     for provider_name, results in all_results.items():
         total = len(results)
@@ -47,6 +55,7 @@ def get_pass_rates_per_provider(all_results: dict[str, list[EvalResult]]) -> dic
     return rates_per_provider
 
 def get_pass_rates_per_category(all_results: dict[str, list[EvalResult]]) -> dict[str, float]:
+    """Return {category: pass_rate} (0.0-1.0), rounded to 2 decimals."""
     rates_per_category = {}
     categorized_results = get_categorized_result_numbers(all_results)
     for cat in categorized_results.keys():
@@ -57,6 +66,7 @@ def get_pass_rates_per_category(all_results: dict[str, list[EvalResult]]) -> dic
     return rates_per_category
 
 def get_pass_rates(base: str, all_results: dict[str, list[EvalResult]]) -> dict[str, float]:
+    """Return pass rates grouped by 'provider' or 'category'."""
     if not base:
         raise ValueError(f"{base} is not a valid baseline. Should be 'provider' or 'category'.")
 
@@ -68,7 +78,7 @@ def get_pass_rates(base: str, all_results: dict[str, list[EvalResult]]) -> dict[
         raise ValueError(f"{base!r} is not a valid baseline. Should be 'provider' or 'category'.")
 
 def generate_report(all_results: dict[str, list[EvalResult]]) -> None:
-    """Generate a report of the results per-provider and per-category pass-rate tables, plus failure-only detail"""
+    """Print per-provider and per-category pass-rate tables, plus failure details."""
 
     total_results = sum(len(r) for r in all_results.values())
     passed_results = sum(1 for r in all_results.values() for x in r if x.passed)
@@ -146,6 +156,128 @@ def save_report(all_results: dict[str, list[EvalResult]], results_dir: Path) -> 
     print(f"Report saved to {path}")
     return path
 
+def _pass_rate_chart_to_base64(rates: dict[str, float], use_provider_meta: bool = False) -> str:
+    """Render a 0-100% pass-rate bar chart for a {label: rate} mapping,
+    return it as a base64 PNG data URI. No file is written to disk.
+
+    If use_provider_meta is True, bar colors and x-axis labels come from
+    PROVIDER_REGISTRY (via provider_label()/provider_color()) so provider
+    bars match cost_dashboard.py's chart; otherwise labels are just
+    capitalized as-is (e.g. for the per-category chart).
+    """
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    labels = list(rates.keys())
+
+    for i, label in enumerate(labels):
+        color = provider_color(label) if use_provider_meta else "#2E7FE0"
+        pct = rates[label] * 100
+        ax.bar(i, pct, color=color)
+        ax.text(i, pct + 1.5, f"{pct:.0f}%", ha="center")
+
+    ax.set_title("Pass rate")
+    ax.set_ylim(0, 100)
+    ax.set_xticks(range(len(labels)))
+    display_labels = [provider_label(lbl) if use_provider_meta else str(lbl).capitalize() for lbl in labels]
+    ax.set_xticklabels(display_labels)
+    ax.set_ylabel("Pass rate (%)")
+
+    buffer = BytesIO()
+    fig.savefig(buffer, format="png", bbox_inches="tight")
+    plt.close(fig)
+
+    buffer.seek(0)
+    encoded = base64.b64encode(buffer.read()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
+
+def generate_report_html(all_results: dict[str, list[EvalResult]], out_path: Path | None = None) -> Path:
+    """Write a self-contained HTML eval report: a card + chart per provider,
+    a per-category pass-rate chart, and a failure-details table. Returns
+    the file path."""
+    if out_path is None:
+        out_path = Path(__file__).parent / "results"
+
+    total = sum(len(r) for r in all_results.values())
+    passed = sum(1 for r in all_results.values() for x in r if x.passed)
+    overall_rate = passed / total if total else 0.0
+
+    provider_rates = get_pass_rates_per_provider(all_results)
+    category_rates = get_pass_rates_per_category(all_results)
+
+    provider_chart = _pass_rate_chart_to_base64(provider_rates, use_provider_meta=True)
+    category_chart = _pass_rate_chart_to_base64(category_rates)
+
+    cards = []
+    for provider_name, results in all_results.items():
+        p = sum(1 for r in results if r.passed)
+        t = len(results)
+        label = provider_label(provider_name)
+        color = provider_color(provider_name)
+        cards.append(f"""
+        <div class="card">
+            <h2><span style="color:{color};">●</span> {label}</h2>
+            <p class="cost">{p}/{t}</p>
+            <p class="meta">{provider_rates[provider_name]:.0%} pass rate</p>
+        </div>
+        """)
+
+    failure_rows = []
+    for provider_name, results in all_results.items():
+        for r in results:
+            if not r.passed:
+                score = f"{r.score:.1f}" if r.score is not None else "None"
+                failure_rows.append(
+                    f"<tr><td>{provider_name}</td><td>{r.case.category}</td>"
+                    f"<td>{r.case.prompt[:60]}</td><td>{score}</td><td>{r.reason[:80]}</td></tr>"
+                )
+
+    failures_block = ""
+    if failure_rows:
+        failures_block = f"""
+        <h2 style="margin-top:2rem;">Failure Details</h2>
+        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <tr style="background:#1F3864; color:white;">
+                <th style="padding:6px; text-align:left;">Provider</th>
+                <th style="padding:6px; text-align:left;">Category</th>
+                <th style="padding:6px; text-align:left;">Prompt</th>
+                <th style="padding:6px; text-align:left;">Score</th>
+                <th style="padding:6px; text-align:left;">Reason</th>
+            </tr>
+            {''.join(failure_rows)}
+        </table>
+        """
+
+    html_string = f"""
+        <html>
+            <head><meta charset="UTF-8">{STYLE_BLOCK}</head>
+            <body>
+                <div style="padding: 1.5rem 0 0.5rem;">
+                    <h1 style="margin: 0 0 4px;">llm-compare — Eval Report</h1>
+                    <p style="margin: 0 0 1.5rem; font-size: 14px; color: #6b7280;">
+                        Overall pass rate: {passed}/{total} ({overall_rate:.0%})
+                    </p>
+                </div>
+                <div class="grid">
+                    {''.join(cards)}
+                </div>
+                {_chart_wrapper(provider_chart)}
+                {_chart_wrapper(category_chart)}
+                {failures_block}
+            </body>
+        </html>
+    """
+
+    out_path.mkdir(exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+    path = out_path / f"eval_report_{timestamp}.html"
+    path.write_text(html_string, encoding="utf-8")
+
+    print(f"Report saved to {path}")
+    return path
+
+def _chart_wrapper(data_uri: str) -> str:
+    """Wrap a chart's base64 data URI in a max-width container so two
+    stacked charts don't stretch to the full page width."""
+    return f'<div style="max-width:700px; margin-bottom:1rem;"><img src="{data_uri}"></div>'
 
 
 if __name__=="__main__":
@@ -173,6 +305,7 @@ if __name__=="__main__":
     all_eval_results = load_results(results_path)
     generate_report(all_eval_results)
     save_report(all_eval_results, RESULTS_DIR)
+    generate_report_html(all_eval_results, RESULTS_DIR)
 
     if args.check_regression:
         baseline = load_baseline(args.check_regression)

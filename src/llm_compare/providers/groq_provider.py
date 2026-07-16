@@ -9,10 +9,12 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam, ChatCompletionStreamOptionsParam,
 )
-from .base import LLMProvider, LLMResult, ProviderError
+from .base import LLMProvider, LLMResult, Provider, ProviderError
 
 
 class GroqProvider(LLMProvider):
+    """Groq's hosted Llama models via Groq's OpenAI-compatible chat API."""
+
     def __init__(self, model: str = 'llama-3.1-8b-instant') -> None:
         """Initialize Groq client and store model name."""
         self.client = OpenAI(
@@ -22,14 +24,14 @@ class GroqProvider(LLMProvider):
         self.model = model
 
     def ask(self, user_input: str, system_prompt: str = '') -> LLMResult:
-        """Call Groq chat completions and return unified LLMResult.
+        """Call Groq chat completions and return a unified LLMResult.
 
             Args:
-                user_input: Input to ask user to enter chat.
-                system_prompt: Input to ask user to enter chat.
+                user_input: The prompt to send to the model.
+                system_prompt: Optional system instructions for the model.
 
             Returns:
-                LLMResult: Result of asking user to enter chat.
+                LLMResult with the response text and usage metrics.
         """
         system_turn: ChatCompletionSystemMessageParam = {
             "role": "system",
@@ -51,7 +53,7 @@ class GroqProvider(LLMProvider):
             assert response.choices[0].message.content is not None
             assert response.usage is not None
             return LLMResult(
-                provider='groq',
+                provider=Provider.groq,
                 model=self.model,
                 text=response.choices[0].message.content,
                 tokens_in=response.usage.prompt_tokens,
@@ -60,19 +62,19 @@ class GroqProvider(LLMProvider):
             )
         except groq.RateLimitError as e:
             raise ProviderError(
-                provider_name="groq",
+                provider_name=Provider.groq,
                 original_error=e,
                 retryable=True
             ) from e
         except groq.APITimeoutError as e:
             raise ProviderError(
-                provider_name="groq",
+                provider_name=Provider.groq,
                 original_error=e,
                 retryable=True
             ) from e
         except (KeyError, AttributeError) as e:
             raise ProviderError(
-                provider_name="groq",
+                provider_name=Provider.groq,
                 original_error=e,
                 retryable=False
             ) from e
@@ -111,7 +113,7 @@ class GroqProvider(LLMProvider):
                     tokens_out = chunk.usage.completion_tokens
             elapsed_time: float = (time.perf_counter() - start_time) * 1000
             return LLMResult(
-                provider='groq',
+                provider=Provider.groq,
                 model=self.model,
                 text=response_text,
                 tokens_in=tokens_in,
@@ -120,19 +122,19 @@ class GroqProvider(LLMProvider):
             )
         except groq.RateLimitError as e:
             raise ProviderError(
-                provider_name="groq",
+                provider_name=Provider.groq,
                 original_error=e,
                 retryable=True
             ) from e
         except groq.APITimeoutError as e:
             raise ProviderError(
-                provider_name="groq",
+                provider_name=Provider.groq,
                 original_error=e,
                 retryable=True
             ) from e
         except (KeyError, AttributeError) as e:
             raise ProviderError(
-                provider_name="groq",
+                provider_name=Provider.groq,
                 original_error=e,
                 retryable=False
             ) from e

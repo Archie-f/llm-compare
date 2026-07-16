@@ -4,7 +4,7 @@ from src.llm_compare.token_utils import estimate_cost
 
 def test_estimate_cost_returns_correct_dollar_amount() -> None:
     """estimate_cost() should return the exact sum of input + output cost for known token counts."""
-    actual_cost = estimate_cost(1_000_000, 1_000_000, "claude-haiku")
+    actual_cost = estimate_cost(1_000_000, 1_000_000, "claude")
     expected_cost = 6.0
     assert actual_cost == expected_cost
 

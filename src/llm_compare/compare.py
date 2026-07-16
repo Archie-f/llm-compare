@@ -119,13 +119,7 @@ def print_table(comparison: ComparisonResult) -> None:
     print(divider)
 
 def save_to_json(comparison: ComparisonResult) -> Path:
-    """Save a ComparisonResult to a timestamped JSON file.
-
-        Args:
-            comparison (ComparisonResult): a ComparisonResult to be saved as a JSON file.
-
-        Returns: Path of the saved file
-    """
+    """Save a ComparisonResult to a timestamped JSON file. Returns the file path."""
     RESULTS_DIR.mkdir(exist_ok=True, parents=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -136,12 +130,7 @@ def save_to_json(comparison: ComparisonResult) -> Path:
     return filename
 
 def load_from_json(path: Path) -> ComparisonResult:
-    """Load a ComparisonResult from a timestamped JSON file.
-        Args:
-            path (Path): Path to the JSON file.
-
-        Returns: a ComparisonResult object
-    """
+    """Load a ComparisonResult back from a JSON file saved by save_to_json()."""
     data = json.loads(path.read_text())
     data['results'] = [LLMResult(**res) for res in data['results']]
     return ComparisonResult(**data)

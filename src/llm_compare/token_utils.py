@@ -1,24 +1,12 @@
-from dataclasses import dataclass
+from .providers.base import PROVIDER_REGISTRY, Provider
 
-
-@dataclass(frozen=True)
-class TokenPricing:
-    input_per_million: float
-    output_per_million: float
-
-PROVIDER_PRICING: dict[str, TokenPricing] = {
-    "claude-haiku": TokenPricing(1.00, 5.00),
-    "claude-sonnet": TokenPricing(3.00, 15.00),
-    "claude-opus": TokenPricing(5.00, 25.00),
-    "gpt-4o-mini": TokenPricing(0.15, 0.60),
-    "ollama": TokenPricing(0.00, 0.00),
-}
 
 def estimate_cost(input_tokens: int, output_tokens: int, provider: str) -> float:
     """Return the estimated USD cost of a call, given token counts."""
-    price = PROVIDER_PRICING[provider]
-    input_cost = input_tokens * price.input_per_million / 1_000_000
-    output_cost = output_tokens * price.output_per_million / 1_000_000
+    provider = Provider(provider)
+    config = PROVIDER_REGISTRY[provider]
+    input_cost = input_tokens * config.input_price_per_million / 1_000_000
+    output_cost = output_tokens * config.output_price_per_million / 1_000_000
     return round(input_cost + output_cost, 6)
 
 def estimate_batch_cost(
@@ -39,18 +27,16 @@ def estimate_batch_cost(
         ) for provider in providers
     }
 
-def count_tokens(text: str, provider: str = "anthropic") -> int:
-    """Estimate the token count of a string for a given provider.
+def count_tokens(text: str) -> int:
+    """Estimate the token count of a string.
 
     Uses a character-based heuristic (~4 chars/token for English)
-    as a fast local approximation. For exact counts, providers
-    expose real tokenizers (see Quick Reference Card).
+    as a fast local approximation.
     """
-    #TODO Update the function
     chars_per_token = 4
     return max(1, len(text) // chars_per_token)
 
-def build_batch_estimate(texts: list[str], provider: str) -> int:
+def build_batch_estimate(texts: list[str]) -> int:
     """Calculates the total estimated token count across all texts in the list"""
-    return sum(count_tokens(text, provider) for text in texts)
+    return sum(count_tokens(text) for text in texts)
 

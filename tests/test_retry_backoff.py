@@ -4,8 +4,8 @@ from src.llm_compare.providers.base import LLMResult, ProviderError
 from src.llm_compare.retry_backoff import retry_with_backoff
 
 SUCCESS_RESULT = LLMResult(
-    provider="test", model="fake", text="success",
-    tokens_in=1, tokens_out=1, latency_ms=1,
+    provider="claude", model="fake", text="success",
+    cost=0.0, tokens_in=1, tokens_out=1, latency_ms=1,
 )
 
 def test_retry_with_backoff_pass_without_retry() -> None:

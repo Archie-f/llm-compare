@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .providers.base import LLMResult, LLMProvider
+from .providers.base import LLMResult, LLMProvider, provider_label, provider_color
 
 LOG_PATH: Path = Path(__file__).parent / "results" / "cost_log.jsonl"
 CSV_PATH: Path = Path(__file__).parent / "results" / "cost_summary.csv"
@@ -58,16 +58,6 @@ STYLE_BLOCK = """
     img { max-width: 100%; border-radius: 8px; }
 </style>
 """
-
-# Display name + color per provider key, shared between the cards and the
-# chart so a provider always looks the same in both places. Adjust these to
-# match your actual provider keys/models.
-PROVIDER_META: dict[str, dict[str, str]] = {
-    "claude": {"label": "Claude", "color": "#2E7FE0"},
-    "open_ai": {"label": "GPT-4o-mini", "color": "#1DB876"},
-    "groq": {"label": "Groq", "color": "#F5A623"},
-    "ollama": {"label": "Ollama", "color": "#6C5CE7"},
-}
 
 def log_run(result: LLMResult, log_path: Path | None = None) -> None:
     """Append one LLMResult as a single JSON line to the cost log."""
@@ -149,6 +139,7 @@ def generate_cost_summary_csv(summary: dict[str, dict[str, Any]], out_path: Path
         writer.writerows(rows)
 
 def generate_cost_summary_markdown(summary: dict[str, dict[str, Any]], out_path: Path | None = None) -> Path:
+    """Write summarize()'s output as a Markdown table. Returns the file path."""
     if out_path is None: out_path = RESULTS_PATH
 
     lines = ["# Summary Report", "\n## Number of calls, Cost, Latency and Quality — Per Provider\n",
@@ -169,29 +160,24 @@ def generate_cost_summary_markdown(summary: dict[str, dict[str, Any]], out_path:
     return path
 
 def _chart_to_base64(summary: dict[str, dict[str, Any]]) -> str:
-    """Render avg latency (in seconds) per provider as a bar chart, return
-    it as a base64 PNG data URI. No file is written to disk.
-
-    Providers with zero calls (e.g. offline this run) get an italic
-    "offline" label instead of a zero-height bar. Bar colors and x-axis
-    labels come from PROVIDER_META so the chart matches the report cards.
-    """
+    """Render avg latency per provider as a base64 PNG data URI (no file
+    written). Providers with zero calls get an "offline" label instead
+    of a bar. Colors/labels come from PROVIDER_REGISTRY."""
     fig, ax = plt.subplots(figsize=(8, 4.8))
     providers = list(summary.keys())
 
     for i, provider in enumerate(providers):
         stats = summary[provider]
-        meta = PROVIDER_META.get(provider, {"label": provider, "color": "#888888"})
         if stats["calls"] == 0:
             ax.text(i, 0.05, "offline", ha="center", style="italic", color="#999999")
             continue
         seconds = stats["avg_latency_ms"] / 1000
-        ax.bar(i, seconds, color=meta["color"])
+        ax.bar(i, seconds, color=provider_color(provider))
         ax.text(i, seconds + 0.05, f"{seconds:.2f}s", ha="center")
 
     ax.set_title("Average latency per provider")
     ax.set_xticks(range(len(providers)))
-    ax.set_xticklabels([PROVIDER_META.get(p, {"label": p})["label"] for p in providers])
+    ax.set_xticklabels([provider_label(p) for p in providers])
     ax.set_ylabel("Latency (s)")
 
     buffer = BytesIO()
@@ -233,12 +219,13 @@ def generate_cost_summary_html(
     cards = []
     for provider in summary.keys():
         stats = summary[provider]
-        meta = PROVIDER_META.get(provider, {"label": provider, "color": "#888888"})
+        label = provider_label(provider)
+        color = provider_color(provider)
 
         if stats["calls"] == 0:
             card_string = f"""
             <div class="card offline">
-                <h2><span style="color:{meta['color']};">●</span> {meta['label']}</h2>
+                <h2><span style="color:{color};">●</span> {label}</h2>
                 <p class="meta">offline this run</p>
             </div>
             """
@@ -246,7 +233,7 @@ def generate_cost_summary_html(
             quality_text = stats['quality'] if stats['quality'] is not None else "—"
             card_string = f"""
             <div class="card">
-                <h2><span style="color:{meta['color']};">●</span> {meta['label']}</h2>
+                <h2><span style="color:{color};">●</span> {label}</h2>
                 <p class="cost">${stats['total_cost']}</p>
                 <p class="meta">{stats['avg_latency_ms'] / 1000:.2f}s avg &middot; quality {quality_text}</p>
             </div>
@@ -264,22 +251,14 @@ def generate_cost_summary_html(
     return path
 
 def run_comparison_batch(prompts: list[str], providers: list[LLMProvider], judge: LLMProvider) -> None:
-    """Run a batch of prompts through run_comparison(), then report cost,
-    latency, and quality for just this batch.
-
-    Each prompt is run across all given providers via run_comparison(),
-    scored by an OpenAI judge, and logged to the cost log as it goes
-    (run_comparison() already calls log_run() internally, after judging).
-    Once the whole batch is done, summarize() is scoped to only this run's
-    entries via `since`, so older log data (e.g. from a previous session)
-    isn't mixed into the results. The combined per-provider summary
-    (calls, total_cost, avg_latency_ms, quality) is printed and also
-    written out as a CSV via generate_cost_summary_csv().
+    """Run every prompt through run_comparison(), scored by judge, then
+    print and write out a per-provider cost/latency/quality summary
+    (CSV, Markdown, HTML) scoped to just this batch via a `since` timestamp.
 
     Args:
         prompts: The prompts to run through every provider.
         providers: The LLMProvider instances to compare.
-        judge: The LLMJudge instance as judge.
+        judge: The LLMProvider used for LLM-as-judge scoring.
     """
     from .compare import run_comparison
 

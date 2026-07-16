@@ -12,13 +12,13 @@ prompt: str = "Explain what is API in one sentence."
 def test_correct_llm_answer():
     mock_judge = MagicMock()
     mock_judge.ask.return_value = LLMResult(
-        provider="test_judge", model="fake_judge", text='{"score": 3, "reason": "The answer is accurate."}',
+        provider="groq", model="fake_judge", text='{"score": 3, "reason": "The answer is accurate."}',
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 
     mock_provider = MagicMock()
     mock_provider.ask.return_value = LLMResult(
-        provider="test", model="fake", text="API is Application Programming Interface.",
+        provider="ollama", model="fake", text="API is Application Programming Interface.",
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 
@@ -30,13 +30,13 @@ def test_correct_llm_answer():
 def test_wrong_llm_answer():
     mock_judge = MagicMock()
     mock_judge.ask.return_value = LLMResult(
-        provider="test_judge", model="fake_judge", text='{"score": 0, "reason": "Invalid answer."}',
+        provider="groq", model="fake_judge", text='{"score": 0, "reason": "Invalid answer."}',
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 
     mock_provider = MagicMock()
     mock_provider.ask.return_value = LLMResult(
-        provider="test", model="fake", text="API is Active Pharmaceutical Ingredient.",
+        provider="ollama", model="fake", text="API is Active Pharmaceutical Ingredient.",
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 
@@ -48,13 +48,13 @@ def test_wrong_llm_answer():
 def test_failed_llm_answer():
     mock_provider = MagicMock()
     mock_provider.ask.return_value = LLMResult(
-        provider="test", model="fake", text="Error occurred.",
+        provider="ollama", model="fake", text="Error occurred.",
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 
     mock_judge = MagicMock()
     mock_judge.ask.return_value = LLMResult(
-        provider="test_judge", model="fake_judge", text="Invalid JSON.",
+        provider="groq", model="fake_judge", text="Invalid JSON.",
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 
@@ -66,7 +66,7 @@ def test_failed_llm_answer():
 def test_judge_call_fails():
     mock_provider = MagicMock()
     mock_provider.ask.return_value = LLMResult(
-        provider="test", model="fake", text="API is Application Programming Interface.",
+        provider="ollama", model="fake", text="API is Application Programming Interface.",
         tokens_in=10, tokens_out=10, latency_ms=1,
     )
 

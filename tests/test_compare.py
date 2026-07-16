@@ -10,17 +10,15 @@ def generate_test_providers_list() -> list[LLMProvider]:
     providers: list[LLMProvider] = [MagicMock(spec=LLMProvider) for _ in range(3)]
     tokens: list[int] = [10, 20, 30]
     latencies: list[float] = [500.0, 200.0, 800.0]
-    for count, (p, t, l) in enumerate(zip(providers, tokens, latencies), start=1):
-        mock = MagicMock(spec=LLMProvider)
-        mock.ask.return_value = LLMResult(
-            provider=f"test_provider-{count}",
-            model=f"test_model-{count}",
-            text=f"test_text-{count}",
-            tokens_in=t,
-            tokens_out=t,
-            latency_ms=l,
+    for i, (provider, token, latency) in enumerate(zip(providers, tokens, latencies), start=1):
+        provider.ask.return_value = LLMResult(
+            provider=f"test_provider-{i}",
+            model="test_model",
+            text=f"test_provider-{i} - test_text.",
+            tokens_in=token,
+            tokens_out=token,
+            latency_ms=latency,
         )
-        providers[count - 1] = mock
     return providers
 
 def test_run_comparison_collects_all_results() -> None:

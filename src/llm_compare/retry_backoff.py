@@ -11,19 +11,9 @@ def retry_with_backoff(
         rate_limit_base_delay: float | None = None,
 ) -> LLMResult:
     """Call fn(), retrying on retryable ProviderErrors with exponential
-    backoff and jitter.
-
-    - Catch ProviderError. If err.retryable is False, re-raise immediately.
-    - If retryable, sleep for roughly base_delay * 2**attempt, plus a
-      small random jitter, then try again.
-    - Rate-limit errors (where original_error's class name contains
-      "RateLimit") use rate_limit_base_delay instead of base_delay for
-      that backoff calculation, since a rate limit means the provider is
-      certain you're going too fast, not just unlucky — it deserves a
-      longer wait to actually clear before retrying. Defaults to
-      base_delay * 5 if not given explicitly.
-    - After max_retries failed attempts, re-raise the last error.
-    """
+    backoff + jitter. Non-retryable errors re-raise immediately. Rate-limit
+    errors back off using rate_limit_base_delay (default: base_delay * 5)
+    instead of base_delay. Re-raises the last error after max_retries."""
     if rate_limit_base_delay is None:
         rate_limit_base_delay = base_delay * 5
 

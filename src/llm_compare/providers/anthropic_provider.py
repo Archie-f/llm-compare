@@ -6,7 +6,7 @@ import anthropic
 from anthropic.types import MessageParam, TextBlock
 from dotenv import load_dotenv
 
-from .base import LLMProvider, LLMResult, ProviderError
+from .base import LLMProvider, LLMResult, Provider, ProviderError
 
 load_dotenv()
 
@@ -14,6 +14,7 @@ class AnthropicProvider(LLMProvider):
     """Anthropic Claude via the Anthropic SDK."""
 
     def __init__(self, model: str | None = None) -> None:
+        """Initialize Anthropic client and store model name."""
         self.client = anthropic.Anthropic()
         # model defaults resolved here, not in the signature, so a later
         # load_dotenv() call still takes effect (signature defaults are
@@ -21,15 +22,15 @@ class AnthropicProvider(LLMProvider):
         self.model = model or os.getenv("ANTHROPIC_MODEL_NAME") or "claude-sonnet-4-6"
 
     def ask(self, user_input: str, system_prompt: str = '', temperature: float = 0.7) -> LLMResult:
-        """Call Anthropic messages create and return unified LLMResult.
+        """Call Anthropic messages.create and return a unified LLMResult.
 
         Args:
-            user_input: The text prompt provided by the user.
-            system_prompt: Optional background instructions for the model.
-            temperature: Optional background instructions for the temperature.
+            user_input: The prompt to send to the model.
+            system_prompt: Optional system instructions for the model.
+            temperature: Sampling temperature (0.0-1.0).
 
         Returns:
-            A structured LLMResult object containing unified metrics.
+            LLMResult with the response text and usage metrics.
         """
         prompt: list[MessageParam] = [
             {"role": "user", "content": user_input}
@@ -46,7 +47,7 @@ class AnthropicProvider(LLMProvider):
             elapsed_time = (time.perf_counter() - start_time) * 1000
             text_block = next(b for b in response.content if isinstance(b, TextBlock))
             return LLMResult(
-                provider='claude',
+                provider=Provider.claude,
                 model=self.model,
                 text=text_block.text,
                 tokens_in=response.usage.input_tokens,
@@ -55,19 +56,19 @@ class AnthropicProvider(LLMProvider):
             )
         except anthropic.RateLimitError as e:
             raise ProviderError(
-                provider_name="anthropic",
+                provider_name=Provider.claude,
                 original_error=e,
                 retryable=True,
             ) from e
         except anthropic.APITimeoutError as e:
             raise ProviderError(
-                provider_name="anthropic",
+                provider_name=Provider.claude,
                 original_error=e,
                 retryable=True,
             ) from e
         except (KeyError, AttributeError, StopIteration) as e:
             raise ProviderError(
-                provider_name="anthropic",
+                provider_name=Provider.claude,
                 original_error=e,
                 retryable=False,
             ) from e
@@ -92,7 +93,7 @@ class AnthropicProvider(LLMProvider):
                 final_message = stream.get_final_message()
             elapsed_time = (time.perf_counter() - start_time) * 1000
             return LLMResult(
-                provider="claude",
+                provider=Provider.claude,
                 model=self.model,
                 text=response,
                 tokens_in=final_message.usage.input_tokens,
@@ -101,19 +102,19 @@ class AnthropicProvider(LLMProvider):
             )
         except anthropic.RateLimitError as e:
             raise ProviderError(
-                provider_name="anthropic",
+                provider_name=Provider.claude,
                 original_error=e,
                 retryable=True,
             ) from e
         except anthropic.APITimeoutError as e:
             raise ProviderError(
-                provider_name="anthropic",
+                provider_name=Provider.claude,
                 original_error=e,
                 retryable=True,
             ) from e
         except (KeyError, AttributeError, StopIteration) as e:
             raise ProviderError(
-                provider_name="anthropic",
+                provider_name=Provider.claude,
                 original_error=e,
                 retryable=False,
             ) from e

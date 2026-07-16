@@ -3,6 +3,8 @@ from typing import Any, Generator, cast
 from .providers.base import LLMResult
 
 def print_stream_and_collect_result(generator: Generator[str, Any, LLMResult]) -> LLMResult:
+    """Print each streamed chunk as it arrives, then print and return the
+    final LLMResult once the generator is exhausted."""
     try:
         while True:
             print(next(generator), end="", flush=True)

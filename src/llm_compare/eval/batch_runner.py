@@ -7,13 +7,7 @@ from typing import Optional
 from .types import EvalCase, EvalResult
 from .harness import run_eval
 
-from ..providers.base import LLMProvider
-
-PRICING = {
-    "claude":  {"input": 1.00 / 1_000_000, "output": 5.00 / 1_000_000},
-    "open_ai": {"input": 0.15 / 1_000_000, "output": 0.60 / 1_000_000},
-    "ollama":  {"input": 0.00,             "output": 0.00},
-}
+from ..providers.base import LLMProvider, PROVIDER_REGISTRY, Provider
 
 AVG_OUTPUT_TOKENS = 200
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -29,11 +23,13 @@ def estimate_cost(dataset: list[EvalCase], providers: list[str]) -> float:
         input_tokens = len(case.prompt.split()) * 1.3
 
         for provider in providers:
-            if provider not in PRICING:
-                raise ValueError(f"Unknown provider: {provider!r}. Add it to PRICING.")
+            if provider not in PROVIDER_REGISTRY:
+                raise ValueError(f"Unknown provider: {provider!r}. Add it to PROVIDER_REGISTRY.")
 
-            input_price = input_tokens * PRICING[provider]["input"]
-            output_price = AVG_OUTPUT_TOKENS * PRICING[provider]["output"]
+            provider = Provider(provider)
+            config = PROVIDER_REGISTRY[provider]
+            input_price = input_tokens * config.input_price_per_million / 1_000_000
+            output_price = AVG_OUTPUT_TOKENS * config.output_price_per_million / 1_000_000
             total += input_price + output_price
 
     return total
@@ -71,15 +67,7 @@ def run_batch(
 
 
 def _persist(all_results: dict[str, list[EvalResult]]) -> None:
-    """Persist batch results to a timestamped JSON file in the results/ directory.
-
-        Creates the results/ directory if it does not exist. Each call writes a new
-        file named batch_YYYY-MM-DD_HH-MM.json containing all provider results as
-        plain dicts, suitable for later loading and reporting.
-
-        Args:
-            all_results: Dict mapping provider name → list of EvalResult objects.
-        """
+    """Write all_results to results/batch_YYYY-MM-DD_HH-MM.json as plain dicts."""
     RESULTS_DIR.mkdir(exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
     path = RESULTS_DIR / f"batch_{timestamp}.json"

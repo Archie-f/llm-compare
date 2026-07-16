@@ -5,9 +5,11 @@ from typing import Generator, Any
 
 import requests
 
-from .base import LLMProvider, LLMResult
+from .base import LLMProvider, LLMResult, Provider
 
 class OllamaProvider(LLMProvider):
+    """A locally-running Ollama model, called over its REST API."""
+
     def __init__(self, model: str = "llama3"):
         """Store model name."""
         self.model = model
@@ -47,7 +49,7 @@ class OllamaProvider(LLMProvider):
             data = response.json()
 
             return LLMResult(
-                provider="ollama",
+                provider=Provider.ollama,
                 model=self.model,
                 text=data["message"]["content"],
                 tokens_in=data.get("prompt_eval_count", 0),
@@ -56,7 +58,7 @@ class OllamaProvider(LLMProvider):
             )
         except requests.exceptions.ConnectionError:
             return LLMResult(
-                provider="ollama",
+                provider=Provider.ollama,
                 model=self.model,
                 text="ERROR: Ollama is not available (connection refused)",
                 tokens_in=0,
@@ -109,7 +111,7 @@ class OllamaProvider(LLMProvider):
                     tokens_out = chunk.get("eval_count", 0)
             elapsed_time: float = (time.perf_counter() - start_time) * 1000
             return LLMResult(
-                provider="ollama",
+                provider=Provider.ollama,
                 model=self.model,
                 text=response_text,
                 tokens_in=tokens_in,
@@ -118,7 +120,7 @@ class OllamaProvider(LLMProvider):
             )
         except requests.exceptions.ConnectionError:
             return LLMResult(
-                provider="ollama",
+                provider=Provider.ollama,
                 model=self.model,
                 text="ERROR: Ollama is not available (connection refused)",
                 tokens_in=0,
@@ -128,7 +130,7 @@ class OllamaProvider(LLMProvider):
 
 
 def run(prompt: str) -> None:
-    """Run the same prompt across all available providers and print results."""
+    """Run a single prompt through OllamaProvider and print the result."""
     provider: LLMProvider = OllamaProvider()
     result = provider.ask(prompt)
     print(f"Provider: {result.provider}")

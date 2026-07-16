@@ -9,24 +9,26 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam, ChatCompletionStreamOptionsParam
 )
 
-from .base import LLMProvider, LLMResult, ProviderError
+from .base import LLMProvider, LLMResult, Provider, ProviderError
 
 
 class OpenAIProvider(LLMProvider):
+    """GPT-4o-mini via the OpenAI SDK."""
+
     def __init__(self, model: str = 'gpt-4o-mini') -> None:
         """Initialize OpenAI client and store model name."""
         self.client = OpenAI()
         self.model = model
 
     def ask(self, user_input: str, system_prompt: str = '') -> LLMResult:
-        """Call OpenAI chat completions and return unified LLMResult.
+        """Call OpenAI chat completions and return a unified LLMResult.
 
             Args:
-                user_input: Input to ask user to enter chat.
-                system_prompt: Input to ask user to enter chat.
+                user_input: The prompt to send to the model.
+                system_prompt: Optional system instructions for the model.
 
             Returns:
-                LLMResult: Result of asking user to enter chat.
+                LLMResult with the response text and usage metrics.
         """
         system_turn: ChatCompletionSystemMessageParam = {
             "role": "system",
@@ -48,7 +50,7 @@ class OpenAIProvider(LLMProvider):
             assert response.choices[0].message.content is not None
             assert response.usage is not None
             return LLMResult(
-                provider='open_ai',
+                provider=Provider.open_ai,
                 model=self.model,
                 text=response.choices[0].message.content,
                 tokens_in=response.usage.prompt_tokens,
@@ -57,19 +59,19 @@ class OpenAIProvider(LLMProvider):
             )
         except openai.RateLimitError as e:
             raise ProviderError(
-                provider_name="openai",
+                provider_name=Provider.open_ai,
                 original_error=e,
                 retryable=True
             ) from e
         except openai.APITimeoutError as e:
             raise ProviderError(
-                provider_name="openai",
+                provider_name=Provider.open_ai,
                 original_error=e,
                 retryable=True
             ) from e
         except (KeyError, AttributeError) as e:
             raise ProviderError(
-                provider_name="openai",
+                provider_name=Provider.open_ai,
                 original_error=e,
                 retryable=False
             ) from e
@@ -108,7 +110,7 @@ class OpenAIProvider(LLMProvider):
                     tokens_out = chunk.usage.completion_tokens
             elapsed_time: float = (time.perf_counter() - start_time) * 1000
             return LLMResult(
-                provider='open_ai',
+                provider=Provider.open_ai,
                 model=self.model,
                 text=response_text,
                 tokens_in=tokens_in,
@@ -117,19 +119,19 @@ class OpenAIProvider(LLMProvider):
             )
         except openai.RateLimitError as e:
             raise ProviderError(
-                provider_name="openai",
+                provider_name=Provider.open_ai,
                 original_error=e,
                 retryable=True
             ) from e
         except openai.APITimeoutError as e:
             raise ProviderError(
-                provider_name="openai",
+                provider_name=Provider.open_ai,
                 original_error=e,
                 retryable=True
             ) from e
         except (KeyError, AttributeError) as e:
             raise ProviderError(
-                provider_name="openai",
+                provider_name=Provider.open_ai,
                 original_error=e,
                 retryable=False
             ) from e
