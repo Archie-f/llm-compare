@@ -3,13 +3,13 @@
 ![CI](https://github.com/<your-username>/llm-compare/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 
-**Stop picking LLMs based on "vibes." Run a single prompt across the providers Claude, GPT-4o-mini, Groq, and Ollama to see who actually wins on price, speed, and output quality.**
+**Stop picking LLMs based on "vibes." Run one or many prompts across any combination of Claude, GPT-4o-mini, Groq, and Ollama, and get either a cost/latency/quality dashboard or a pass-rate eval report — real data instead of a gut feeling.**
 
 ## What & Why
 
 Choosing an LLM usually comes down to blind guesswork or a vague hunch like, *"Claude just feels better for this specific task."* 
 
-**llm-compare** replaces that intuition with hard data. The tool blasts your prompt across four different providers, runs the answers through an automated judge, and spits out a clean, side-by-side breakdown of cost, latency, and quality. You get an actual data-driven decision instead of a coin flip.
+**llm-compare** replaces that intuition with hard data. Point it at one prompt or a whole file of them, pick any subset of the four providers, and it runs every combination through an automated judge, spitting out a clean, side-by-side breakdown of cost, latency, and quality. Or run the built-in eval suite instead, to see each provider's pass rate on a fixed set of factual, summarization, and sentiment test cases. Either way, you get an actual data-driven decision instead of a coin flip.
 
 ## Installation
 
@@ -22,11 +22,21 @@ cp .env.example .env   # add your Anthropic/OpenAI/Groq keys
 
 ## Quickstart
 
+Compare your own prompts across providers and get a cost/latency/quality dashboard:
+
 ```bash
-python -m llm_compare.compare
+llm-compare cost --providers claude,open_ai,groq,ollama --prompts your_prompts.txt
 ```
 
-Runs a sample prompt across Claude, GPT-4o-mini, Groq, and Ollama, and prints a side-by-side breakdown of the cost, latency, and judge score for each. (To try your own prompt, edit the `inp` line in `compare.py`'s `__main__` block for now — no CLI argument yet.)
+`your_prompts.txt` is a plain text file, one prompt per line (blank lines and `#`-prefixed comments are skipped). See `tests/prompts.txt` for an example.
+
+Or run the built-in eval suite (factual, summarization, sentiment) across providers and get a pass-rate report:
+
+```bash
+llm-compare eval --providers claude,open_ai,groq,ollama
+```
+
+Both commands accept an optional `--judge <provider>` for LLM-as-judge scoring (defaults to the first provider listed). `eval` also accepts `--dataset <path>` to score against your own JSON file of eval cases instead of the built-in set. Each command prints a summary to your terminal and writes report files (CSV/Markdown/HTML for `cost`, Markdown/HTML for `eval`) to `results/`.
 
 ## Comparison Table
 

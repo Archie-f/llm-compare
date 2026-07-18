@@ -32,12 +32,14 @@ def run_eval(
             cases: list of EvalCase objects to evaluate
             provider: LLMProvider used to generate outputs
             judge: optional LLMProvider used by LLM-as-judge scorer
-            system_prompt: system prompt passed to the provider (default: none)
+            system_prompt: system prompt passed to the provider (default: none),
+                combined per-case with the case's own task_description
     """
     results = []
     for case in cases:
+        case_system_prompt = f"{system_prompt}\n{case.task_description}".strip() if case.task_description else system_prompt
         try:
-            llm_result = retry_with_backoff(lambda: provider.ask(user_input=case.prompt, system_prompt=system_prompt))
+            llm_result = retry_with_backoff(lambda: provider.ask(user_input=case.prompt, system_prompt=case_system_prompt))
         except ProviderError as e:
             llm_result = LLMResult(
                 provider=e.provider_name,

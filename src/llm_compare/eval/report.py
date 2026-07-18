@@ -156,7 +156,7 @@ def save_report(all_results: dict[str, list[EvalResult]], results_dir: Path) -> 
     print(f"Report saved to {path}")
     return path
 
-def _pass_rate_chart_to_base64(rates: dict[str, float], use_provider_meta: bool = False) -> str:
+def _pass_rate_chart_to_base64(rates: dict[str, float], use_provider_meta: bool = False, title: str = "Pass rate") -> str:
     """Render a 0-100% pass-rate bar chart for a {label: rate} mapping,
     return it as a base64 PNG data URI. No file is written to disk.
 
@@ -174,8 +174,8 @@ def _pass_rate_chart_to_base64(rates: dict[str, float], use_provider_meta: bool 
         ax.bar(i, pct, color=color)
         ax.text(i, pct + 1.5, f"{pct:.0f}%", ha="center")
 
-    ax.set_title("Pass rate")
-    ax.set_ylim(0, 100)
+    ax.set_title(title)
+    ax.set_ylim(0, 115)
     ax.set_xticks(range(len(labels)))
     display_labels = [provider_label(lbl) if use_provider_meta else str(lbl).capitalize() for lbl in labels]
     ax.set_xticklabels(display_labels)
@@ -203,8 +203,13 @@ def generate_report_html(all_results: dict[str, list[EvalResult]], out_path: Pat
     provider_rates = get_pass_rates_per_provider(all_results)
     category_rates = get_pass_rates_per_category(all_results)
 
-    provider_chart = _pass_rate_chart_to_base64(provider_rates, use_provider_meta=True)
-    category_chart = _pass_rate_chart_to_base64(category_rates)
+    provider_chart = _pass_rate_chart_to_base64(provider_rates, use_provider_meta=True, title="Pass rate per provider")
+    category_chart = _pass_rate_chart_to_base64(category_rates, title="Pass rate per category")
+
+    n = len(all_results)
+    wide = n >= 3
+    grid_attrs = f'class="grid wide" style="grid-template-columns: repeat({n}, 1fr);"' if wide else 'class="grid"'
+    chart_row_class = "chart-row wide" if wide else "chart-row"
 
     cards = []
     for provider_name, results in all_results.items():
@@ -256,11 +261,13 @@ def generate_report_html(all_results: dict[str, list[EvalResult]], out_path: Pat
                         Overall pass rate: {passed}/{total} ({overall_rate:.0%})
                     </p>
                 </div>
-                <div class="grid">
+                <div {grid_attrs}>
                     {''.join(cards)}
                 </div>
-                {_chart_wrapper(provider_chart)}
-                {_chart_wrapper(category_chart)}
+                <div class="{chart_row_class}">
+                    <div><img src="{provider_chart}"></div>
+                    <div><img src="{category_chart}"></div>
+                </div>
                 {failures_block}
             </body>
         </html>
@@ -273,11 +280,6 @@ def generate_report_html(all_results: dict[str, list[EvalResult]], out_path: Pat
 
     print(f"Report saved to {path}")
     return path
-
-def _chart_wrapper(data_uri: str) -> str:
-    """Wrap a chart's base64 data URI in a max-width container so two
-    stacked charts don't stretch to the full page width."""
-    return f'<div style="max-width:700px; margin-bottom:1rem;"><img src="{data_uri}"></div>'
 
 
 if __name__=="__main__":
