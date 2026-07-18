@@ -7,7 +7,7 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from src.llm_compare.eval.types import EvalCase
 from src.llm_compare.eval.batch_runner import run_batch, estimate_cost
-from src.llm_compare.eval.dataset import EVAL_DATASET
+from src.llm_compare.eval.dataset import load_eval_dataset
 from src.llm_compare.eval.harness import SCORER_DISPATCH
 
 eval_dataset: list[EvalCase] = [
@@ -53,7 +53,8 @@ def test_persist_false_leaves_no_file():
     assert files_before == files_after
 
 def test_all_categories_are_registered():
-    for case in EVAL_DATASET:
+    dataset = load_eval_dataset()
+    for case in dataset:
         assert case.category in SCORER_DISPATCH, (
             f"Category '{case.category}' has no scorer in SCORER_DISPATCH"
         )

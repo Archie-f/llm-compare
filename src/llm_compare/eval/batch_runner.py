@@ -6,6 +6,7 @@ from typing import Optional
 
 from .types import EvalCase, EvalResult
 from .harness import run_eval
+from .report import generate_report, save_report, generate_report_html
 
 from ..providers.base import LLMProvider, PROVIDER_REGISTRY, Provider
 
@@ -62,9 +63,11 @@ def run_batch(
 
     if persist:
         _persist(all_results)
+        generate_report(all_results)
+        save_report(all_results, RESULTS_DIR)
+        generate_report_html(all_results, RESULTS_DIR)
 
     return all_results
-
 
 def _persist(all_results: dict[str, list[EvalResult]]) -> None:
     """Write all_results to results/batch_YYYY-MM-DD_HH-MM.json as plain dicts."""

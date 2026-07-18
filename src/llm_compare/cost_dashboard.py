@@ -26,10 +26,28 @@ STYLE_BLOCK = """
     }
     .grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
         gap: 16px;
-        max-width: 700px;
+        max-width: 1000px;
         margin-bottom: 1.5rem;
+    }
+    .chart-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        max-width: 1000px;
+        margin-bottom: 1.5rem;
+    }
+    .chart-row > div {
+        flex: 1 1 320px;
+        max-width: 492px;
+    }
+    .grid.wide {
+        max-width: none;
+    }
+    .chart-row.wide {
+        margin-left: auto;
+        margin-right: auto;
     }
     .card {
         background: #ffffff;
@@ -188,28 +206,72 @@ def _chart_to_base64(summary: dict[str, dict[str, Any]]) -> str:
     encoded = base64.b64encode(buffer.read()).decode("utf-8")
     return f"data:image/png;base64,{encoded}"
 
+def _quality_chart_to_base64(summary: dict[str, dict[str, Any]]) -> str:
+    """Render judge-score quality (0-1) per provider as a base64 PNG data
+    URI (no file written). Providers with zero calls get an "offline"
+    label; providers with calls but no judge score get an "N/A" label.
+    Colors/labels come from PROVIDER_REGISTRY."""
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    providers = list(summary.keys())
+
+    for i, provider in enumerate(providers):
+        stats = summary[provider]
+        if stats["calls"] == 0:
+            ax.text(i, 0.05, "offline", ha="center", style="italic", color="#999999")
+            continue
+        if stats["quality"] is None:
+            ax.text(i, 0.05, "N/A", ha="center", style="italic", color="#999999")
+            continue
+        quality = stats["quality"]
+        ax.bar(i, quality, color=provider_color(provider))
+        ax.text(i, quality + 0.02, f"{quality:.1f}", ha="center")
+
+    ax.set_title("Quality per provider")
+    ax.set_ylim(0, 1.15)
+    ax.set_xticks(range(len(providers)))
+    ax.set_xticklabels([provider_label(p) for p in providers])
+    ax.set_ylabel("Quality (0-1)")
+
+    buffer = BytesIO()
+    fig.savefig(buffer, format="png", bbox_inches="tight")
+    plt.close(fig)
+
+    buffer.seek(0)
+    encoded = base64.b64encode(buffer.read()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
+
 def generate_cost_summary_html(
     summary: dict[str, dict[str, Any]], out_path: Path | None = None
 ) -> Path:
-    """Write summarize()'s output as a self-contained HTML report:
-    one card per provider (calls, total_cost, avg_latency_ms,
-    quality) plus the latency chart from _chart_to_base64()
-    embedded inline."""
+    """Write summarize()'s output as a self-contained HTML report: one
+    cost-only card per provider, plus side-by-side latency and quality
+    charts from _chart_to_base64()/_quality_chart_to_base64()."""
     if out_path is None: out_path = RESULTS_PATH
+
+    n = len(summary)
+    wide = n >= 3
+    grid_attrs = f'class="grid wide" style="grid-template-columns: repeat({n}, 1fr);"' if wide else 'class="grid"'
+    chart_row_class = "chart-row wide" if wide else "chart-row"
 
     html_string = f"""
             <html>
                 <head><meta charset="UTF-8">{STYLE_BLOCK}</head>
                 <body>
                     <div style="padding: 1.5rem 0 0.5rem;">
-                        <h1 style="margin: 0 0 4px;">llm-compare v0.7.0</h1>
+                        <h1 style="margin: 0 0 4px;">llm-compare — Cost Dashboard Report</h1>
                         <p style="margin: 0 0 1.5rem; font-size: 14px; color: #6b7280;">Cost, latency & quality — 5 real prompts across 4 providers</p>
                     </div>
-                    <div class="grid">
+                    <div {grid_attrs}>
         """
 
     latency_bar_chart = _chart_to_base64(summary)
-    chart_image_str = f'<img src="{latency_bar_chart}">'
+    quality_bar_chart = _quality_chart_to_base64(summary)
+    charts_row = f"""
+        <div class="{chart_row_class}">
+            <div><img src="{latency_bar_chart}"></div>
+            <div><img src="{quality_bar_chart}"></div>
+        </div>
+        """
 
     closure = """
                 </body>
@@ -230,17 +292,15 @@ def generate_cost_summary_html(
             </div>
             """
         else:
-            quality_text = stats['quality'] if stats['quality'] is not None else "—"
             card_string = f"""
             <div class="card">
                 <h2><span style="color:{color};">●</span> {label}</h2>
                 <p class="cost">${stats['total_cost']}</p>
-                <p class="meta">{stats['avg_latency_ms'] / 1000:.2f}s avg &middot; quality {quality_text}</p>
             </div>
             """
         cards.append(card_string)
     cards_text = "\n".join(cards)
-    report_text = html_string + "\n" + cards_text + "\n</div>\n" + chart_image_str + "\n" + closure
+    report_text = html_string + "\n" + cards_text + "\n</div>\n" + charts_row + "\n" + closure
 
     out_path.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -250,19 +310,31 @@ def generate_cost_summary_html(
     print(f"Report saved to {path}")
     return path
 
-def run_comparison_batch(prompts: list[str], providers: list[LLMProvider], judge: LLMProvider) -> None:
+def load_prompts(path: Path) -> list[str]:
+    """Load prompts from a txt file."""
+    prompts = []
+    with open(path, "r") as f:
+        raw_prompts = f.read().splitlines()
+    for line in raw_prompts:
+        if not line or line.startswith("#"):
+            continue
+        prompts.append(line.strip())
+    return prompts
+
+def run_comparison_batch(path: Path, providers: list[LLMProvider], judge: LLMProvider) -> None:
     """Run every prompt through run_comparison(), scored by judge, then
     print and write out a per-provider cost/latency/quality summary
     (CSV, Markdown, HTML) scoped to just this batch via a `since` timestamp.
 
     Args:
-        prompts: The prompts to run through every provider.
+        path: Path to the txt file that includes the prompts to run through every provider.
         providers: The LLMProvider instances to compare.
         judge: The LLMProvider used for LLM-as-judge scoring.
     """
     from .compare import run_comparison
 
     since = datetime.now().isoformat(timespec="seconds")
+    prompts = load_prompts(path)
     for prompt in prompts:
         run_comparison(prompt, providers, judge=judge)
 
