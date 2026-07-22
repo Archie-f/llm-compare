@@ -1,0 +1,7 @@
+target-version = "py312"
+
+[lint]
+# E701: "if x is None: x = default" one-liners are a deliberate style
+# choice used throughout this codebase for resolving None-defaulted
+# parameters — not something we're rewriting to satisfy the linter.
+ignore = ["E701"]

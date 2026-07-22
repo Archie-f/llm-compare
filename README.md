@@ -1,6 +1,6 @@
 # llm-compare
 
-![CI](https://github.com/<your-username>/llm-compare/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Archie-f/llm-compare/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 
 **Stop picking LLMs based on "vibes." Run one or many prompts across any combination of Claude, GPT-4o-mini, Groq, and Ollama, and get either a cost/latency/quality dashboard or a pass-rate eval report — real data instead of a gut feeling.**
@@ -14,7 +14,7 @@ Choosing an LLM usually comes down to blind guesswork or a vague hunch like, *"C
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/llm-compare.git
+git clone https://github.com/Archie-f/llm-compare.git
 cd llm-compare
 pip install -e .
 cp .env.example .env   # add your Anthropic/OpenAI/Groq keys
